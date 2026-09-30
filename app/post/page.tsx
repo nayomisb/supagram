@@ -227,7 +227,7 @@ export default function CreatePage() {
             />
           </div>
 
-          {/* Mensaje de estado */}
+          {/* Mensaje de estado*/}
           {message && (
             <div
               className={`px-4 py-3 rounded-xl text-sm ${
