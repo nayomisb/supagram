@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getTimeAgo } from "./utils/time";
-import {  type Post } from "./mocks/posts";
+import { type Post } from "./mocks/posts";
 import { supabase } from "./utils/supabase";
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -37,7 +37,15 @@ function HeartIcon({ filled }: { filled: boolean }) {
   );
 }
 
-function PostCard({ post, onLike }: { post: Post; onLike: (id: number | string) => void }) {
+function PostCard({
+  post,
+  onLike,
+  priority = false,
+}: {
+  post: Post;
+  onLike: (id: number | string) => void;
+  priority?: boolean;
+}) {
   return (
     <article className="bg-card-bg border border-border rounded-xl overflow-hidden shadow-sm">
       {/* Header con usuario y avatar */}
@@ -47,12 +55,13 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number | string) 
             src={post.user?.avatar || 'https://sjdhknjmgyvopvhtustz.supabase.co/storage/v1/object/public/supagram/profiles/download%20(10).jpg'}
             alt={post.user?.username || 'default user'}
             fill
+            sizes="40px"
             className="object-cover"
           />
         </div>
         <div className="flex flex-col">
           <span className="font-semibold text-foreground">{post.user?.username || 'default user'}</span>
-          <span className="text-xs text-foreground/50">{getTimeAgo( new Date(post.created_at))}</span>
+          <span className="text-xs text-foreground/50">{getTimeAgo(new Date(post.created_at))}</span>
         </div>
       </div>
 
@@ -62,6 +71,8 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number | string) 
           src={post.image_url}
           alt={`Post de ${post.user?.username || 'default user'}`}
           fill
+          sizes="(max-width: 512px) 100vw, 512px"
+          priority={priority}
           className="object-cover"
         />
       </div>
@@ -75,10 +86,10 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number | string) 
             className="hover:scale-110 transition-transform active:scale-95"
             aria-label={post.isLiked ? "Quitar like" : "Dar like"}
           >
-            <HeartIcon filled={post.isLiked} />
+            <HeartIcon filled={!!post.isLiked} />
           </button>
           <span className="font-semibold text-foreground">
-            {post.likes.toLocaleString()} likes
+            {(post.likes ?? 0).toLocaleString()} likes
           </span>
         </div>
 
@@ -93,26 +104,30 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number | string) 
 }
 
 export default function Home() {
-  const [posts, setPosts] = useState<Post[]>([])
-  
-    useEffect(() => {
-      async function getPosts() {
-        const { data: posts } = await supabase
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useEffect(() => {
+    async function getPosts() {
+      // Orden por fecha: los más nuevos primero, sin importar cuántos likes tengan
+      const { data, error } = await supabase
         .from('posts')
         .select('*')
-        // .gte('likes', 0)
-        .order('likes', { ascending: false })
-        .range(0, 11)
-  
-        if (posts) {
-          setPosts(posts)
-          console.log(posts)
-        }
+        .order('created_at', { ascending: false })
+        .range(0, 19);
+
+      if (error) {
+        console.error("❌ Error cargando posts:", error.message);
+        return;
       }
-  
-      getPosts()
-    }, [])
-  // const [posts, setPosts] = useState<Post[]>(initialPosts);
+
+      if (data) {
+        setPosts(data);
+        console.log(data);
+      }
+    }
+
+    getPosts();
+  }, []);
 
   const handleLike = (postId: number | string) => {
     setPosts((prevPosts) =>
@@ -142,8 +157,13 @@ export default function Home() {
       {/* Feed de posts */}
       <main className="max-w-lg mx-auto px-4 py-6">
         <div className="flex flex-col gap-6">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} onLike={handleLike} />
+          {posts.map((post, index) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              onLike={handleLike}
+              priority={index === 0}
+            />
           ))}
         </div>
       </main>

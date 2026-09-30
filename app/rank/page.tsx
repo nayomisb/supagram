@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getTimeAgo } from "../utils/time";
-//import { posts, type Post } from "../mocks/posts";
 import { supabase } from "../utils/supabase";
 import { Post } from "../mocks/posts";
 
@@ -89,7 +88,7 @@ function Modal({
           <div className="flex items-center gap-2">
             <HeartIcon />
             <span className="text-lg font-bold text-foreground">
-              {post.likes.toLocaleString()} likes
+              {(post.likes ?? 0).toLocaleString()} likes
             </span>
           </div>
           <p className="mt-2 text-foreground">
@@ -103,26 +102,30 @@ function Modal({
 }
 
 export default function RankPage() {
-  const [posts, setPosts] = useState<Post[]>([])
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   useEffect(() => {
     async function getPosts() {
-      const { data: posts } = await supabase
-      .from('posts')
-      .select('*')
-      // .gte('likes', 0)
-      .order('likes', { ascending: false })
-      .range(0, 11)
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("likes", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      if (posts) {
-        setPosts(posts)
-        console.log(posts)
+      if (error) {
+        console.error("Error cargando posts:", error);
+        return;
+      }
+
+      if (data) {
+        setPosts(data);
       }
     }
 
-    getPosts()
-  }, [])
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+    getPosts();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -138,7 +141,7 @@ export default function RankPage() {
       {/* Grid de posts */}
       <main className="max-w-2xl mx-auto p-2">
         <div className="grid grid-cols-3 gap-1">
-          {[...posts].sort((a, b) => b.likes - a.likes).map((post) => (
+          {posts.map((post) => (
             <button
               key={post.id}
               onClick={() => setSelectedPost(post)}
@@ -146,7 +149,7 @@ export default function RankPage() {
             >
               <Image
                 src={post.image_url}
-                alt={`Post con ${post.likes} likes`}
+                alt={`Post con ${post.likes ?? 0} likes`}
                 fill
                 className="object-cover transition-transform group-hover:scale-105"
               />
@@ -154,7 +157,7 @@ export default function RankPage() {
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                 <HeartIcon />
                 <span className="text-white font-semibold">
-                  {post.likes.toLocaleString()}
+                  {(post.likes ?? 0).toLocaleString()}
                 </span>
               </div>
             </button>

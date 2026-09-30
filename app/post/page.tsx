@@ -4,6 +4,8 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import { supabase } from "../utils/supabase";
 
+const BUCKET = "supagram";
+
 export default function CreatePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -35,36 +37,37 @@ export default function CreatePage() {
   const uploadAndCreatePost = async (file: File) => {
     const userId = "11111111-1111-1111-1111-111111111111";
 
-    // 1️⃣ Preparar nombre del archivo
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${file.name}-${Date.now()}.${fileExt}`;
-    const filePath = `posts/${fileName}`;
+    // 1️⃣ Preparar nombre del archivo (sin espacios, paréntesis ni doble extensión)
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const fileName = `${Date.now()}-${safeName}`;
+    const filePath = `images/posts/${fileName}`;
 
-    // 2️⃣ Subir al bucket "images"
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("images")
+    // 2️⃣ Subir al bucket "supagram" (carpeta images/posts)
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
+        contentType: file.type,
       });
 
     if (uploadError) {
-      console.error("❌ Error al subir imagen:", uploadError);
-      throw uploadError;
+      console.error("❌ Error al subir imagen:", uploadError.message);
+      throw new Error(uploadError.message);
     }
 
     // 3️⃣ Obtener URL pública
     const { data: urlData } = supabase.storage
-      .from("images")
+      .from(BUCKET)
       .getPublicUrl(filePath);
 
     const publicUrl = urlData.publicUrl;
 
     console.log("📸 Imagen subida:", publicUrl);
 
-    // 4️⃣ Crear el post en la tabla posts_new
+    // 4️⃣ Crear el post en la tabla posts
     const { data: postData, error: postError } = await supabase
-      .from("posts_new")
+      .from("posts")
       .insert({
         user_id: userId,
         image_url: publicUrl,
@@ -74,8 +77,13 @@ export default function CreatePage() {
       .select("*");
 
     if (postError) {
-      console.error("❌ Error creando el post:", postError);
-      throw postError;
+      console.error("❌ Error creando el post:", {
+        message: postError.message,
+        code: postError.code,
+        details: postError.details,
+        hint: postError.hint,
+      });
+      throw new Error(`${postError.message}${postError.code ? ` (${postError.code})` : ""}`);
     }
 
     console.log("🆕 Post creado:", postData);
@@ -140,6 +148,7 @@ export default function CreatePage() {
                   src={imagePreview}
                   alt="Preview"
                   fill
+                  sizes="(max-width: 512px) 100vw, 512px"
                   className="object-cover"
                 />
                 <button
@@ -195,7 +204,7 @@ export default function CreatePage() {
                 </span>
               </label>
             )}
-            
+
             <input
               ref={fileInputRef}
               id="image-upload"
